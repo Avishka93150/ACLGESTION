@@ -333,9 +333,9 @@ function addChatMessage(text, sender, action = null) {
                 <i class="fas fa-${sender === 'bot' ? 'robot' : 'user'}"></i>
             </div>
             <div class="message-content">
-                ${formatMessage(text)}
-                ${action ? `<button class="chat-action-btn" onclick="executeChatAction('${action.type}', '${action.page}')">
-                    <i class="fas fa-arrow-right"></i> Aller à ${action.page}
+                ${sender === 'bot' ? formatMessage(text) : esc(text)}
+                ${action ? `<button class="chat-action-btn" onclick="executeChatAction('${esc(action.type)}', '${esc(action.page)}')">
+                    <i class="fas fa-arrow-right"></i> Aller à ${esc(action.page)}
                 </button>` : ''}
             </div>
         </div>

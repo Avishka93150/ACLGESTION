@@ -6,9 +6,15 @@
 function toast(message, type = 'info') {
     const icons = { success: 'fa-check-circle', error: 'fa-times-circle', warning: 'fa-exclamation-triangle', info: 'fa-info-circle' };
     const container = document.getElementById('toast-container');
+    if (!container) return;
     const el = document.createElement('div');
     el.className = `toast ${type}`;
-    el.innerHTML = `<i class="fas ${icons[type]}"></i><span>${message}</span>`;
+    const icon = document.createElement('i');
+    icon.className = `fas ${icons[type] || 'fa-info-circle'}`;
+    const span = document.createElement('span');
+    span.textContent = message; // textContent au lieu d'innerHTML pour éviter XSS
+    el.appendChild(icon);
+    el.appendChild(span);
     container.appendChild(el);
     setTimeout(() => el.remove(), 4000);
 }
