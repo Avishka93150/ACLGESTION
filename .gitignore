@@ -1,0 +1,29 @@
+# Config locale (contient les secrets)
+api/config.local.php
+
+# Uploads utilisateurs
+uploads/*
+!uploads/.gitkeep
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Node.js v2
+v2/node_modules/
+v2/.env
+v2/dist/
+v2/logs/
+v2/uploads/*
+!v2/uploads/.gitkeep
+
+# Temporaire
+*.log
+*.tmp

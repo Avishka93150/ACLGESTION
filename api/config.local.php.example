@@ -1,0 +1,31 @@
+<?php
+/**
+ * ACL GESTION - Configuration locale
+ * Copier ce fichier en config.local.php et adapter les valeurs.
+ * Ce fichier est ignoré par git.
+ */
+
+// Base de données
+define('DB_HOST', 'localhost');
+define('DB_NAME', 'acl_gestion');
+define('DB_USER', 'votre_user_mysql');
+define('DB_PASS', 'votre_mot_de_passe');
+
+// Application
+define('APP_URL', 'https://votre-domaine.com');
+
+// JWT - IMPORTANT: Générer une clé aléatoire de 64 caractères minimum
+// Commande: openssl rand -hex 32
+define('JWT_SECRET', 'CHANGEZ_MOI_AVEC_OPENSSL_RAND_HEX_32');
+
+// Email admin pour les notifications de contact
+define('ADMIN_EMAIL', 'votre-email@votre-domaine.com');
+
+// SMTP (optionnel)
+define('SMTP_ENABLED', false);
+
+// Debug (false en production)
+define('DEBUG', false);
+
+// CORS - Domaines autorisés (séparés par virgule)
+define('ALLOWED_ORIGINS', 'https://votre-domaine.com');

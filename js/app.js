@@ -536,14 +536,14 @@ function startPolling() {
     updateMaintenanceBadge();
     updateMessagesBadge();
     
-    // Poll every 10 seconds for badges
+    // Poll every 30 seconds for badges (optimisé pour réduire la charge serveur)
     pollingInterval = setInterval(() => {
         if (API.token) {
             updateMaintenanceBadge();
             updateMessagesBadge();
-            loadNotifications(); // Refresh notifications
+            loadNotifications();
         }
-    }, 10000);
+    }, 30000);
 }
 
 function stopPolling() {

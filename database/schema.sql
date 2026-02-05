@@ -801,16 +801,8 @@ SET FOREIGN_KEY_CHECKS = 1;
 INSERT INTO users (email, password, first_name, last_name, role, status, created_at) 
 VALUES ('admin@acl-gestion.fr', '$2y$10$xLRsMXJ3qYfQoEIL8VNf8OzDl6VKVvLqbG1qJkF3McXa1DQXNWQW6', 'Admin', 'ACL', 'admin', 'active', NOW());
 
--- Catégories de linge
-INSERT INTO linen_categories (name, code, created_at) VALUES 
-('Draps 1 place', 'DRAP1P', NOW()),
-('Draps 2 places', 'DRAP2P', NOW()),
-('Taies oreiller', 'TAIE', NOW()),
-('Serviettes bain', 'SERV_BAIN', NOW()),
-('Serviettes toilette', 'SERV_TOIL', NOW()),
-('Tapis de bain', 'TAPIS', NOW()),
-('Peignoirs', 'PEIGNOIR', NOW()),
-('Couvertures', 'COUV', NOW());
+-- Note: linen_categories a ete remplacee par linen_config et linen_transactions.
+-- Les types de linge sont geres directement dans les colonnes de ces tables.
 
 -- Hôtel démo
 INSERT INTO hotels (name, address, city, postal_code, phone, email, stars, total_floors, checkin_time, checkout_time, status, created_at) 
@@ -1163,29 +1155,46 @@ INSERT INTO gdpr_settings (setting_key, setting_value, updated_at) VALUES
 ('privacy_policy_date', NOW(), NOW())
 ON DUPLICATE KEY UPDATE setting_key = setting_key;
 
--- Ajouter colonne consentement dans users si absente
-ALTER TABLE users ADD COLUMN IF NOT EXISTS gdpr_consent TINYINT(1) DEFAULT 0 AFTER is_active;
-ALTER TABLE users ADD COLUMN IF NOT EXISTS gdpr_consent_date DATETIME AFTER gdpr_consent;
+-- Ajouter colonnes RGPD dans users (compatible MySQL 5.x - pas de IF NOT EXISTS sur ALTER)
+-- Utiliser des procedures stockees pour compatibilite MySQL 5.x
+DELIMITER //
+CREATE PROCEDURE add_column_if_not_exists(
+    IN p_table VARCHAR(64),
+    IN p_column VARCHAR(64),
+    IN p_definition VARCHAR(500)
+)
+BEGIN
+    SET @exists = (SELECT COUNT(*) FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = p_table AND COLUMN_NAME = p_column);
+    IF @exists = 0 THEN
+        SET @sql = CONCAT('ALTER TABLE ', p_table, ' ADD COLUMN ', p_column, ' ', p_definition);
+        PREPARE stmt FROM @sql;
+        EXECUTE stmt;
+        DEALLOCATE PREPARE stmt;
+    END IF;
+END //
+DELIMITER ;
+
+CALL add_column_if_not_exists('users', 'gdpr_consent', 'TINYINT(1) DEFAULT 0');
+CALL add_column_if_not_exists('users', 'gdpr_consent_date', 'DATETIME');
 
 -- ==================== SUIVI CAISSE DETAILLE ====================
 
--- Ajouter colonnes pour le suivi caisse détaillé
-ALTER TABLE daily_closures 
-    ADD COLUMN IF NOT EXISTS expense_receipt VARCHAR(500) AFTER notes,
-    ADD COLUMN IF NOT EXISTS remise_banque DECIMAL(10,2) DEFAULT 0 AFTER expense_receipt;
+CALL add_column_if_not_exists('daily_closures', 'expense_receipt', 'VARCHAR(500)');
+CALL add_column_if_not_exists('daily_closures', 'remise_banque', 'DECIMAL(10,2) DEFAULT 0');
 
 -- Migration: Ajouter colonne justificatif pour les arrêts maladie
-ALTER TABLE leave_requests 
-    ADD COLUMN IF NOT EXISTS justificatif_url VARCHAR(500) AFTER comment;
+CALL add_column_if_not_exists('leave_requests', 'justificatif_url', 'VARCHAR(500)');
 
 -- Migration: Colonnes de suivi des alertes maintenance
-ALTER TABLE maintenance_tickets 
-    ADD COLUMN IF NOT EXISTS notified_2days TINYINT(1) DEFAULT 0 COMMENT 'Alerte 2 jours envoyée',
-    ADD COLUMN IF NOT EXISTS notified_5days TINYINT(1) DEFAULT 0 COMMENT 'Alerte 5 jours envoyée';
+CALL add_column_if_not_exists('maintenance_tickets', 'notified_2days', 'TINYINT(1) DEFAULT 0');
+CALL add_column_if_not_exists('maintenance_tickets', 'notified_5days', 'TINYINT(1) DEFAULT 0');
 
 -- Migration: Colonne chambre bloquée pour tickets maintenance
-ALTER TABLE maintenance_tickets 
-    ADD COLUMN IF NOT EXISTS room_blocked TINYINT(1) DEFAULT 0 COMMENT 'Chambre bloquée/hors service';
+CALL add_column_if_not_exists('maintenance_tickets', 'room_blocked', 'TINYINT(1) DEFAULT 0');
+
+-- Nettoyage de la procedure temporaire
+DROP PROCEDURE IF EXISTS add_column_if_not_exists;
 
 -- =====================================================
 -- REFONTE MODULE TACHES - Multi-hôtels, membres, pièces jointes

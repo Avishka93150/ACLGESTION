@@ -19,6 +19,48 @@ function json_error($msg, $code = 400) {
     json_out(['success' => false, 'message' => $msg], $code);
 }
 
+// Protection brute-force login
+function checkLoginRateLimit($email) {
+    $ip = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
+    $lockFile = sys_get_temp_dir() . '/acl_login_' . md5($ip . $email);
+
+    if (file_exists($lockFile)) {
+        $data = json_decode(file_get_contents($lockFile), true);
+        if ($data && isset($data['attempts']) && isset($data['last_attempt'])) {
+            // Si verrouillé et pas encore expiré
+            if ($data['attempts'] >= LOGIN_MAX_ATTEMPTS) {
+                $lockoutUntil = $data['last_attempt'] + (LOGIN_LOCKOUT_MINUTES * 60);
+                if (time() < $lockoutUntil) {
+                    $remaining = ceil(($lockoutUntil - time()) / 60);
+                    json_error("Trop de tentatives. Réessayez dans {$remaining} minute(s).", 429);
+                }
+                // Lockout expiré, reset
+                @unlink($lockFile);
+                return;
+            }
+        }
+    }
+}
+
+function recordLoginAttempt($email, $success) {
+    $ip = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
+    $lockFile = sys_get_temp_dir() . '/acl_login_' . md5($ip . $email);
+
+    if ($success) {
+        @unlink($lockFile);
+        return;
+    }
+
+    $data = ['attempts' => 1, 'last_attempt' => time()];
+    if (file_exists($lockFile)) {
+        $existing = json_decode(file_get_contents($lockFile), true);
+        if ($existing) {
+            $data['attempts'] = ($existing['attempts'] ?? 0) + 1;
+        }
+    }
+    file_put_contents($lockFile, json_encode($data));
+}
+
 // Cache pour l'input brut (php://input ne peut être lu qu'une fois)
 $GLOBALS['_RAW_INPUT'] = null;
 
@@ -319,8 +361,7 @@ function notifyManagersForLeaveRequest($employee, $leaveId, $startDate, $endDate
 
 function sendLeaveNotificationEmail($toEmail, $toName, $employeeName, $typeLabel, $dateRange, $days, $leaveType) {
     // Vérifier si les mails sont activés
-    $config = @include(__DIR__ . '/config.php');
-    if (empty($config['smtp_host'])) return;
+    if (defined('SMTP_ENABLED') && !SMTP_ENABLED) return;
     
     $isUrgent = $leaveType === 'maladie';
     
@@ -701,7 +742,8 @@ try {
         case 'health':
         case '':
             json_out(['status' => 'OK', 'time' => date('Y-m-d H:i:s')]);
-        
+            break; // Sécurité: éviter le fall-through vers contact
+
         // --- CONTACT (public) ---
         case 'contact':
             if ($method === 'POST') {
@@ -828,7 +870,7 @@ try {
                 $adminHeaders .= "From: ACL GESTION <noreply@acl-gestion.com>\r\n";
                 $adminHeaders .= "Reply-To: {$data['email']}\r\n";
                 
-                @mail('avishka@acl-gestion.com', $adminSubject, $adminBody, $adminHeaders);
+                @mail(defined('ADMIN_EMAIL') ? ADMIN_EMAIL : 'admin@acl-gestion.com', $adminSubject, $adminBody, $adminHeaders);
                 
                 // Email de confirmation au prospect
                 $prospectSubject = "=?UTF-8?B?" . base64_encode("Merci pour votre demande - ACL GESTION") . "?=";
@@ -888,13 +930,18 @@ try {
                 if (empty($data['email']) || empty($data['password'])) {
                     json_error('Email et mot de passe requis');
                 }
-                
+
+                // Protection brute-force
+                checkLoginRateLimit($data['email']);
+
                 $user = Auth::login($data['email'], $data['password']);
                 if (!$user) {
+                    recordLoginAttempt($data['email'], false);
                     // Logger la tentative échouée
                     rgpdLog(null, 'login_failed', 'auth', null, "Tentative échouée pour: " . $data['email']);
                     json_error('Email ou mot de passe incorrect');
                 }
+                recordLoginAttempt($data['email'], true);
                 
                 // Logger la connexion réussie
                 rgpdLog($user['id'], 'login', 'auth', $user['id'], null);
